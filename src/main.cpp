@@ -4,6 +4,8 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <mbedtls/md.h>
+#include <esp_wifi.h>
+#include <esp_bt.h>
 #include "config.h"
 
 // Storage for last displayed image filename and data
@@ -206,7 +208,7 @@ void enterDeepSleep() {
     esp_wifi_stop();
 
     // Disable Bluetooth
-    btStop();
+    esp_bt_controller_disable();
 
     // Power down peripherals
     M5.Display.sleep();  // E-paper display to sleep mode
