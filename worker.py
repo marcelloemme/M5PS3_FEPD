@@ -43,14 +43,31 @@ def center_crop(img, target_width, target_height):
 
 def convert_to_4bit_grayscale(img):
     """
-    Convert image to 4-bit grayscale (16 levels)
+    Convert image to 4-bit grayscale (16 levels) with dithering
     """
-    # Convert to grayscale
+    # Convert to grayscale first
     img = img.convert('L')
 
-    # Quantize to 16 levels (4-bit)
-    # Map 256 levels to 16 levels
-    img = img.point(lambda x: (x // 16) * 17)
+    # Apply Floyd-Steinberg dithering by quantizing to 16 colors (4-bit)
+    # Pillow's built-in dithering when converting to 'P' mode with custom palette
+
+    # Create a 16-level grayscale palette (0, 17, 34, 51, ..., 255)
+    palette = []
+    for i in range(16):
+        gray_value = i * 17  # Maps 0-15 to 0-255
+        palette.extend([gray_value, gray_value, gray_value])  # R, G, B
+    # Fill the rest with black (palette needs 256 colors)
+    palette.extend([0, 0, 0] * (256 - 16))
+
+    # Create palette image
+    palette_img = Image.new('P', (1, 1))
+    palette_img.putpalette(palette)
+
+    # Quantize with dithering
+    img = img.quantize(colors=16, palette=palette_img, dither=Image.Dither.FLOYDSTEINBERG)
+
+    # Convert back to grayscale
+    img = img.convert('L')
 
     return img
 
@@ -121,6 +138,7 @@ def process_new_images():
     """
     Process all new images in input/ folder, preserving original filenames
     Only processes images that don't already exist in image/ folder
+    Keeps original images in input/ folder
     """
     input_files = sorted(INPUT_DIR.glob("*.jpg")) + sorted(INPUT_DIR.glob("*.jpeg")) + \
                   sorted(INPUT_DIR.glob("*.JPG")) + sorted(INPUT_DIR.glob("*.JPEG")) + \
@@ -143,21 +161,20 @@ def process_new_images():
             # Check if already processed
             if output_path.exists():
                 print(f"Skipping {input_file.name} (already exists in image/)")
-                input_file.unlink()
                 continue
+
+            # Archive old images (move previous image to output/)
+            archive_old_images()
 
             # Process new image preserving the filename
             process_image(input_file, output_path)
 
-            # Remove processed file from input
-            input_file.unlink()
-            print(f"Removed {input_file.name} from input/")
-
-            # Archive old images (keep only the latest in image/)
-            archive_old_images()
+            print(f"Processed {input_file.name} -> image/{original_name}")
 
         except Exception as e:
             print(f"Error processing {input_file.name}: {e}")
+            import traceback
+            traceback.print_exc()
             continue
 
 def watch_mode():
