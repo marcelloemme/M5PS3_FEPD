@@ -1,0 +1,34 @@
+name: Process Images
+
+on:
+  push:
+    paths:
+      - 'input/**'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Process images
+        run: python worker.py
+
+      - name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto-process images 🖼️"
+          file_pattern: 'image/* output/* input/*'
