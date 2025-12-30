@@ -188,7 +188,8 @@ def process_new_images():
 
     print(f"Found {len(input_files)} new image(s) in input/")
 
-    for input_file in input_files:
+    # Process images from oldest to newest (sorted by filename/timestamp)
+    for i, input_file in enumerate(input_files):
         try:
             # Keep original filename but change extension to .png
             original_name = input_file.stem + ".png"
@@ -212,6 +213,19 @@ def process_new_images():
             import traceback
             traceback.print_exc()
             continue
+
+    # Final cleanup: ensure only the latest image remains in image/
+    print("\n=== Final cleanup: keeping only latest image ===")
+    image_files = sorted(IMAGE_DIR.glob("*.png")) + sorted(IMAGE_DIR.glob("*.PNG"))
+    image_files = [f for f in image_files if f.name != '.gitkeep']
+
+    if len(image_files) > 1:
+        # Archive all except the latest
+        for img_file in image_files[:-1]:
+            archive_path = OUTPUT_DIR / img_file.name
+            shutil.move(str(img_file), str(archive_path))
+            print(f"Archived {img_file.name} to output/")
+        print(f"Kept latest: {image_files[-1].name}")
 
 def watch_mode():
     """
