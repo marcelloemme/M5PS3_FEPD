@@ -229,20 +229,13 @@ void enterDeepSleep() {
 void showTemporaryError(const char* message) {
     Serial.printf("Error: %s\n", message);
 
-    // Only show error overlay if we have a previous image to restore
+    // If we have a valid image, don't touch the display at all
     if (hasValidImage) {
-        // Show small error overlay at top
-        M5.Display.setTextSize(2);
-        M5.Display.setTextColor(TFT_WHITE, TFT_BLACK);
-        M5.Display.fillRect(0, 0, M5.Display.width(), 40, TFT_BLACK);
-        M5.Display.drawString(message, 10, 10);
-        M5.Display.display();
-        delay(2000);
-
-        // Error disappears automatically (e-paper retains image underneath)
-        Serial.println("Keeping previous image on display");
+        Serial.println("Keeping previous image on display (no refresh)");
+        // E-paper retains the last displayed image without power
+        // No need to do anything - just return
     } else {
-        // First boot, no previous image - show full error
+        // First boot, no previous image - show full error screen
         M5.Display.clearDisplay();
         M5.Display.setRotation(DISPLAY_ROTATION);
         M5.Display.setTextSize(3);
@@ -251,7 +244,6 @@ void showTemporaryError(const char* message) {
         M5.Display.setTextSize(2);
         M5.Display.drawString(message, 20, 150);
         M5.Display.display();
-        delay(2000);
     }
 }
 
