@@ -42,13 +42,13 @@ def center_crop(img, target_width, target_height):
 
     return img
 
-def apply_unsharp_mask(img, radius=2.0, amount=1.5):
+def apply_unsharp_mask(img, radius=2.0, amount=1.2):
     """
     Apply unsharp mask to increase local contrast and detail
     Essential for preserving fine texture (like dog fur) on e-paper
 
     radius: blur radius (2.0 = fine details)
-    amount: strength (1.5 = moderate sharpening)
+    amount: strength (1.2 = gentle sharpening)
     """
     return img.filter(ImageFilter.UnsharpMask(radius=radius, percent=int(amount * 100), threshold=3))
 
@@ -102,7 +102,7 @@ def convert_to_4bit_grayscale(img):
     img = img.convert('L')
 
     # Apply unsharp mask FIRST to enhance fine details and texture
-    img = apply_unsharp_mask(img, radius=2.0, amount=1.5)
+    img = apply_unsharp_mask(img, radius=2.0, amount=1.2)
 
     # Apply gamma correction (expands highlights without burning)
     img = apply_gamma_correction(img, gamma=0.85)
