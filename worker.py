@@ -42,6 +42,22 @@ def center_crop(img, target_width, target_height):
 
     return img
 
+def apply_gamma_correction(img, gamma=0.7):
+    """
+    Apply gamma correction optimized for e-paper display
+    gamma < 1.0 expands highlights (more detail in bright areas)
+    gamma > 1.0 expands shadows
+
+    E-paper displays compress highlights, so we use gamma=0.7 to compensate
+    """
+    pixels = np.array(img, dtype=np.float32) / 255.0
+
+    # Apply gamma curve
+    pixels = np.power(pixels, gamma)
+
+    pixels = (pixels * 255.0).astype(np.uint8)
+    return Image.fromarray(pixels, mode='L')
+
 def auto_levels(img):
     """
     Auto-levels adjustment like Photoshop: stretch histogram to use full 0-255 range
@@ -69,12 +85,16 @@ def convert_to_4bit_grayscale(img):
     """
     Convert image to 4-bit grayscale (16 levels) with Floyd-Steinberg dithering
     Uses manual dithering implementation for better control
+    Optimized for e-paper display characteristics
     """
     # Convert to grayscale
     img = img.convert('L')
 
     # Apply auto-levels to maximize contrast
     img = auto_levels(img)
+
+    # Apply gamma correction for e-paper (expands highlights)
+    img = apply_gamma_correction(img, gamma=0.7)
 
     # Convert to numpy array for manipulation
     pixels = np.array(img, dtype=np.float32)
