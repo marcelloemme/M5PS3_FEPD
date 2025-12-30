@@ -11,14 +11,6 @@ __pycache__/
 venv/
 .env
 
-# Image folders (except .gitkeep)
-input/*
-!input/.gitkeep
-output/*
-!output/.gitkeep
-image/*
-!image/.gitkeep
-
 # Config with credentials
 src/config.h
 
