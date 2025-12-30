@@ -32,3 +32,4 @@ jobs:
         with:
           commit_message: "Auto-process images 🖼️"
           file_pattern: 'image/* output/* input/*'
+          add_options: '--all'
