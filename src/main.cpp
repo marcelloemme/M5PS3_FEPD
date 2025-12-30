@@ -6,8 +6,9 @@
 #include <mbedtls/md.h>
 #include "config.h"
 
-// Storage for last displayed image filename
+// Storage for last displayed image filename and data
 RTC_DATA_ATTR char lastImageFilename[64] = {0};
+RTC_DATA_ATTR bool hasValidImage = false;  // Track if we have a valid image displayed
 
 /**
  * Get latest image filename from GitHub API
@@ -221,16 +222,35 @@ void enterDeepSleep() {
 }
 
 /**
- * Show error message on display
+ * Show temporary error message (2 seconds) then restore previous image
  */
-void showError(const char* message) {
-    M5.Display.clear();
-    M5.Display.setRotation(DISPLAY_ROTATION);
-    M5.Display.setTextSize(3);
-    M5.Display.setTextColor(TFT_BLACK);
-    M5.Display.drawString("Error:", 20, 100);
-    M5.Display.setTextSize(2);
-    M5.Display.drawString(message, 20, 150);
+void showTemporaryError(const char* message) {
+    Serial.printf("Error: %s\n", message);
+
+    // Only show error overlay if we have a previous image to restore
+    if (hasValidImage) {
+        // Show small error overlay at top
+        M5.Display.setTextSize(2);
+        M5.Display.setTextColor(TFT_WHITE, TFT_BLACK);
+        M5.Display.fillRect(0, 0, M5.Display.width(), 40, TFT_BLACK);
+        M5.Display.drawString(message, 10, 10);
+        M5.Display.display();
+        delay(2000);
+
+        // Error disappears automatically (e-paper retains image underneath)
+        Serial.println("Keeping previous image on display");
+    } else {
+        // First boot, no previous image - show full error
+        M5.Display.clearDisplay();
+        M5.Display.setRotation(DISPLAY_ROTATION);
+        M5.Display.setTextSize(3);
+        M5.Display.setTextColor(TFT_BLACK);
+        M5.Display.drawString("Error:", 20, 100);
+        M5.Display.setTextSize(2);
+        M5.Display.drawString(message, 20, 150);
+        M5.Display.display();
+        delay(2000);
+    }
 }
 
 void setup() {
@@ -247,11 +267,11 @@ void setup() {
     Serial.println("\n=== M5PaperS3 Image Display ===");
     Serial.printf("Display: %dx%d\n", M5.Display.width(), M5.Display.height());
     Serial.printf("Last displayed image: %s\n", lastImageFilename[0] ? lastImageFilename : "none");
+    Serial.printf("Has valid image: %s\n", hasValidImage ? "yes" : "no");
 
     // Connect to WiFi
     if (!connectWiFi()) {
-        showError("WiFi connection failed");
-        delay(5000);
+        showTemporaryError("WiFi failed");
         enterDeepSleep();
         return;
     }
@@ -260,15 +280,14 @@ void setup() {
     String latestFilename = getLatestImageFilename();
 
     if (latestFilename.length() == 0) {
-        showError("No images in repository");
-        delay(5000);
+        showTemporaryError("No images in repo");
         enterDeepSleep();
         return;
     }
 
     // Check if image has changed
     if (strcmp(latestFilename.c_str(), lastImageFilename) == 0) {
-        Serial.println("Image unchanged, skipping display update");
+        Serial.println("Image unchanged, keeping current display");
         enterDeepSleep();
         return;
     }
@@ -278,27 +297,27 @@ void setup() {
     uint8_t* imageData = downloadImage(latestFilename, &imageSize);
 
     if (!imageData) {
-        showError("Image download failed");
-        delay(5000);
+        showTemporaryError("Download failed");
         enterDeepSleep();
         return;
     }
 
     // Display new image
     if (displayImage(imageData, imageSize)) {
-        // Update stored filename
+        // Update stored filename and mark as valid
         strncpy(lastImageFilename, latestFilename.c_str(), sizeof(lastImageFilename) - 1);
         lastImageFilename[sizeof(lastImageFilename) - 1] = '\0';
-        Serial.printf("Updated last image to: %s\n", lastImageFilename);
+        hasValidImage = true;
+        Serial.printf("Successfully updated to: %s\n", lastImageFilename);
+
+        // Wait to admire the new image
+        delay(2000);
     } else {
-        showError("Failed to display image");
+        showTemporaryError("Display failed");
     }
 
     // Cleanup
     free(imageData);
-
-    // Wait a bit to see the image
-    delay(2000);
 
     // Enter deep sleep
     enterDeepSleep();
