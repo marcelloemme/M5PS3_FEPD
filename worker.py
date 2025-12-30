@@ -11,7 +11,8 @@ import sys
 import time
 import shutil
 from pathlib import Path
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageEnhance
+import numpy as np
 
 # Configuration
 INPUT_DIR = Path("input")
@@ -43,31 +44,41 @@ def center_crop(img, target_width, target_height):
 
 def convert_to_4bit_grayscale(img):
     """
-    Convert image to 4-bit grayscale (16 levels) with dithering
+    Convert image to 4-bit grayscale (16 levels) with Floyd-Steinberg dithering
+    Uses manual dithering implementation for better control
     """
-    # Convert to grayscale first
+    # Convert to grayscale
     img = img.convert('L')
 
-    # Apply Floyd-Steinberg dithering by quantizing to 16 colors (4-bit)
-    # Pillow's built-in dithering when converting to 'P' mode with custom palette
+    # Convert to numpy array for manipulation
+    pixels = np.array(img, dtype=np.float32)
+    height, width = pixels.shape
 
-    # Create a 16-level grayscale palette (0, 17, 34, 51, ..., 255)
-    palette = []
-    for i in range(16):
-        gray_value = i * 17  # Maps 0-15 to 0-255
-        palette.extend([gray_value, gray_value, gray_value])  # R, G, B
-    # Fill the rest with black (palette needs 256 colors)
-    palette.extend([0, 0, 0] * (256 - 16))
+    # Floyd-Steinberg dithering
+    for y in range(height):
+        for x in range(width):
+            old_pixel = pixels[y, x]
 
-    # Create palette image
-    palette_img = Image.new('P', (1, 1))
-    palette_img.putpalette(palette)
+            # Quantize to 16 levels (0, 17, 34, ..., 255)
+            new_pixel = np.round(old_pixel / 17) * 17
+            pixels[y, x] = new_pixel
 
-    # Quantize with dithering
-    img = img.quantize(colors=16, palette=palette_img, dither=Image.Dither.FLOYDSTEINBERG)
+            # Calculate quantization error
+            error = old_pixel - new_pixel
 
-    # Convert back to grayscale
-    img = img.convert('L')
+            # Distribute error to neighboring pixels
+            if x + 1 < width:
+                pixels[y, x + 1] += error * 7 / 16
+            if y + 1 < height:
+                if x > 0:
+                    pixels[y + 1, x - 1] += error * 3 / 16
+                pixels[y + 1, x] += error * 5 / 16
+                if x + 1 < width:
+                    pixels[y + 1, x + 1] += error * 1 / 16
+
+    # Clip values to valid range and convert back
+    pixels = np.clip(pixels, 0, 255).astype(np.uint8)
+    img = Image.fromarray(pixels, mode='L')
 
     return img
 
