@@ -1,0 +1,25 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// WiFi Configuration
+// Copy this file to config.h and fill in your credentials
+#define WIFI_SSID "YOUR_WIFI_SSID"
+#define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
+
+// GitHub Raw URL for current image
+// Replace 'marcelloemme' with your GitHub username if you forked the repo
+#define IMAGE_URL "https://raw.githubusercontent.com/marcelloemme/M5PS3_FEPD/main/image/current.jpg"
+
+// Image dimensions (M5PaperS3 display size)
+#define IMAGE_WIDTH 540
+#define IMAGE_HEIGHT 960
+
+// Sleep duration (microseconds) - default: 30 minutes
+// Adjust based on how frequently you want to check for new images
+#define SLEEP_DURATION_US (30 * 60 * 1000000ULL)
+
+// Display rotation
+// 0 = portrait, 1 = landscape, 2 = portrait inverted, 3 = landscape inverted
+#define DISPLAY_ROTATION 0
+
+#endif // CONFIG_H

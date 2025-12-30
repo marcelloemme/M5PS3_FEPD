@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(pio project init:*)",
+      "Bash(platformio project init:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(git add:*)"
+    ]
+  }
+}
