@@ -92,14 +92,39 @@ def auto_levels(img):
     pixels = np.clip(pixels, 0, 255).astype(np.uint8)
     return Image.fromarray(pixels, mode='L')
 
+def color_aware_grayscale(img):
+    """
+    Convert to grayscale preserving color contrast
+    Maintains separation between different colors even if they have similar luminosity
+    """
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+
+    r, g, b = img.split()
+    r_data = np.array(r, dtype=np.float32)
+    g_data = np.array(g, dtype=np.float32)
+    b_data = np.array(b, dtype=np.float32)
+
+    # Standard luminosity
+    luminosity = 0.299 * r_data + 0.587 * g_data + 0.114 * b_data
+
+    # Chrominance boost for color boundaries
+    rc_diff = r_data - (g_data + b_data) / 2.0
+    by_diff = b_data - (r_data + g_data) / 2.0
+    chroma_boost = (np.abs(rc_diff) + np.abs(by_diff)) * 0.15
+
+    result = luminosity + chroma_boost
+    result = np.clip(result, 0, 255).astype(np.uint8)
+    return Image.fromarray(result, mode='L')
+
 def convert_to_4bit_grayscale(img):
     """
     Convert image to 4-bit grayscale (16 levels) with Floyd-Steinberg dithering
     Uses manual dithering implementation for better control
     Optimized for e-paper display characteristics
     """
-    # Convert to grayscale
-    img = img.convert('L')
+    # Convert to grayscale with color awareness
+    img = color_aware_grayscale(img)
 
     # Apply unsharp mask FIRST to enhance fine details and texture
     img = apply_unsharp_mask(img, radius=2.0, amount=1.2)
