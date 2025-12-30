@@ -42,6 +42,29 @@ def center_crop(img, target_width, target_height):
 
     return img
 
+def auto_levels(img):
+    """
+    Auto-levels adjustment like Photoshop: stretch histogram to use full 0-255 range
+    Maps darkest pixel to 0 and brightest pixel to 255
+    """
+    pixels = np.array(img, dtype=np.float32)
+
+    # Find current min and max values
+    min_val = pixels.min()
+    max_val = pixels.max()
+
+    # If already using full range, skip
+    if min_val == 0 and max_val == 255:
+        return img
+
+    # Stretch histogram to 0-255
+    # Formula: (pixel - min) * 255 / (max - min)
+    if max_val > min_val:  # Avoid division by zero
+        pixels = (pixels - min_val) * 255.0 / (max_val - min_val)
+
+    pixels = np.clip(pixels, 0, 255).astype(np.uint8)
+    return Image.fromarray(pixels, mode='L')
+
 def convert_to_4bit_grayscale(img):
     """
     Convert image to 4-bit grayscale (16 levels) with Floyd-Steinberg dithering
@@ -49,6 +72,9 @@ def convert_to_4bit_grayscale(img):
     """
     # Convert to grayscale
     img = img.convert('L')
+
+    # Apply auto-levels to maximize contrast
+    img = auto_levels(img)
 
     # Convert to numpy array for manipulation
     pixels = np.array(img, dtype=np.float32)
