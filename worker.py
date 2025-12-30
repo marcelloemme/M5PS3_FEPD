@@ -42,13 +42,14 @@ def center_crop(img, target_width, target_height):
 
     return img
 
-def apply_gamma_correction(img, gamma=0.7):
+def apply_gamma_correction(img, gamma=0.85):
     """
     Apply gamma correction optimized for e-paper display
     gamma < 1.0 expands highlights (more detail in bright areas)
     gamma > 1.0 expands shadows
 
-    E-paper displays compress highlights, so we use gamma=0.7 to compensate
+    E-paper displays compress highlights, so we use gamma=0.85 to compensate
+    without burning out highlight details
     """
     pixels = np.array(img, dtype=np.float32) / 255.0
 
@@ -90,11 +91,11 @@ def convert_to_4bit_grayscale(img):
     # Convert to grayscale
     img = img.convert('L')
 
-    # Apply auto-levels to maximize contrast
-    img = auto_levels(img)
+    # Apply gamma correction FIRST (expands highlights without burning)
+    img = apply_gamma_correction(img, gamma=0.85)
 
-    # Apply gamma correction for e-paper (expands highlights)
-    img = apply_gamma_correction(img, gamma=0.7)
+    # Then auto-levels to remap to full 0-255 range
+    img = auto_levels(img)
 
     # Convert to numpy array for manipulation
     pixels = np.array(img, dtype=np.float32)
