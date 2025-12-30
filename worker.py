@@ -130,7 +130,7 @@ def get_latest_image_in_folder(folder):
 
 def archive_old_images():
     """
-    Move all images from image/ to output/, except the latest one
+    Move ALL images from image/ to output/ before processing new one
     """
     image_files = sorted(IMAGE_DIR.glob("*.jpg")) + sorted(IMAGE_DIR.glob("*.jpeg")) + \
                   sorted(IMAGE_DIR.glob("*.JPG")) + sorted(IMAGE_DIR.glob("*.JPEG"))
@@ -138,12 +138,11 @@ def archive_old_images():
     # Filter out .gitkeep
     image_files = [f for f in image_files if f.name != '.gitkeep']
 
-    if len(image_files) > 1:
-        # Archive all except the latest
-        for img_file in image_files[:-1]:
-            archive_path = OUTPUT_DIR / img_file.name
-            shutil.move(str(img_file), str(archive_path))
-            print(f"Archived {img_file.name} to output/")
+    # Archive all images found in image/
+    for img_file in image_files:
+        archive_path = OUTPUT_DIR / img_file.name
+        shutil.move(str(img_file), str(archive_path))
+        print(f"Archived {img_file.name} to output/")
 
 def process_new_images():
     """
