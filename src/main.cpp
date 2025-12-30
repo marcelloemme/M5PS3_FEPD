@@ -167,18 +167,22 @@ uint8_t* downloadImage(const String& filename, size_t* imageSize) {
 }
 
 /**
- * Display image on M5PaperS3
+ * Display image on M5PaperS3 (only refresh if changed)
  */
 bool displayImage(const uint8_t* imageData, size_t imageSize) {
     Serial.println("\n=== Displaying Image ===");
 
     M5.Display.setRotation(DISPLAY_ROTATION);
-    M5.Display.clear();
 
-    // Draw JPEG directly to display
+    // Clear only once before drawing new image
+    M5.Display.clearDisplay();
+
+    // Draw JPEG directly to display buffer (no refresh yet)
     bool success = M5.Display.drawJpg(imageData, imageSize, 0, 0, IMAGE_WIDTH, IMAGE_HEIGHT);
 
     if (success) {
+        // Single refresh after image is drawn
+        M5.Display.display();
         Serial.println("Image displayed successfully!");
     } else {
         Serial.println("Failed to display image");
@@ -188,16 +192,31 @@ bool displayImage(const uint8_t* imageData, size_t imageSize) {
 }
 
 /**
- * Enter deep sleep
+ * Enter deep sleep with maximum power savings
  */
 void enterDeepSleep() {
     Serial.println("\n=== Entering Deep Sleep ===");
     Serial.printf("Sleep duration: %llu minutes\n", SLEEP_DURATION_US / 60000000ULL);
+    Serial.flush();  // Ensure serial output completes
 
+    // Shutdown WiFi completely
     WiFi.disconnect(true);
     WiFi.mode(WIFI_OFF);
+    esp_wifi_stop();
 
+    // Disable Bluetooth
+    btStop();
+
+    // Power down peripherals
+    M5.Display.sleep();  // E-paper display to sleep mode
+
+    // Disable all wakeup sources except timer
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+
+    // Configure timer wakeup
     esp_sleep_enable_timer_wakeup(SLEEP_DURATION_US);
+
+    // Enter deep sleep (RTC memory preserved, minimal power)
     esp_deep_sleep_start();
 }
 
@@ -215,11 +234,16 @@ void showError(const char* message) {
 }
 
 void setup() {
+    // Configure M5 with minimal power consumption
     auto cfg = M5.config();
+    cfg.output_power = false;  // Disable external power output
     M5.begin(cfg);
 
+    // Disable unnecessary peripherals
+    M5.In_I2C.release();  // Release I2C if not needed
+
     Serial.begin(115200);
-    delay(1000);
+    delay(500);  // Reduced delay
     Serial.println("\n=== M5PaperS3 Image Display ===");
     Serial.printf("Display: %dx%d\n", M5.Display.width(), M5.Display.height());
     Serial.printf("Last displayed image: %s\n", lastImageFilename[0] ? lastImageFilename : "none");
