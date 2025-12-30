@@ -11,7 +11,7 @@ import sys
 import time
 import shutil
 from pathlib import Path
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageOps
 
 # Configuration
 INPUT_DIR = Path("input")
@@ -57,31 +57,20 @@ def convert_to_4bit_grayscale(img):
 def process_image(input_path, output_path):
     """
     Process a single image: crop, resize, convert to 4-bit grayscale
+    Automatically handles EXIF orientation from iPhone
     """
     print(f"Processing {input_path.name}...")
 
-    # Open and auto-rotate based on EXIF
+    # Open image
     img = Image.open(input_path)
-    img = img.convert('RGB')  # Ensure RGB mode
 
-    # Auto-rotate based on EXIF orientation
-    try:
-        img = img._getexif()
-        if img is not None:
-            for orientation in [274]:  # EXIF orientation tag
-                exif = dict(img._getexif().items())
-                if orientation in exif:
-                    if exif[orientation] == 3:
-                        img = img.rotate(180, expand=True)
-                    elif exif[orientation] == 6:
-                        img = img.rotate(270, expand=True)
-                    elif exif[orientation] == 8:
-                        img = img.rotate(90, expand=True)
-    except (AttributeError, KeyError, TypeError):
-        pass
+    # Auto-rotate based on EXIF orientation tag
+    # This handles images rotated by iPhone/camera
+    img = ImageOps.exif_transpose(img)
 
-    # Reload image (EXIF handling workaround)
-    img = Image.open(input_path)
+    # Ensure RGB mode
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
 
     # Center crop to target aspect ratio
     img = center_crop(img, TARGET_WIDTH, TARGET_HEIGHT)
