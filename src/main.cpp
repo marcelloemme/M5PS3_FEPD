@@ -2,32 +2,70 @@
 #include <M5Unified.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <ArduinoJson.h>
 #include <mbedtls/md.h>
 #include "config.h"
 
-// Storage for image hash
-RTC_DATA_ATTR char lastImageHash[65] = {0};  // SHA256 hash (64 chars + null)
+// Storage for last displayed image filename
+RTC_DATA_ATTR char lastImageFilename[64] = {0};
 
 /**
- * Calculate SHA256 hash of data
+ * Get latest image filename from GitHub API
+ * Returns the filename of the latest image in the image/ folder
  */
-void calculateSHA256(const uint8_t* data, size_t len, char* outputBuffer) {
-    byte shaResult[32];
-    mbedtls_md_context_t ctx;
-    mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+String getLatestImageFilename() {
+    HTTPClient http;
+    String latestFilename = "";
 
-    mbedtls_md_init(&ctx);
-    mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 0);
-    mbedtls_md_starts(&ctx);
-    mbedtls_md_update(&ctx, data, len);
-    mbedtls_md_finish(&ctx, shaResult);
-    mbedtls_md_free(&ctx);
+    Serial.println("\n=== Fetching image list from GitHub ===");
+    Serial.printf("API URL: %s\n", GITHUB_API_URL);
 
-    // Convert to hex string
-    for (int i = 0; i < 32; i++) {
-        sprintf(&outputBuffer[i * 2], "%02x", shaResult[i]);
+    http.begin(GITHUB_API_URL);
+    http.addHeader("Accept", "application/vnd.github.v3+json");
+
+    int httpCode = http.GET();
+
+    if (httpCode != HTTP_CODE_OK) {
+        Serial.printf("GitHub API request failed: %d\n", httpCode);
+        http.end();
+        return "";
     }
-    outputBuffer[64] = 0;
+
+    String payload = http.getString();
+    http.end();
+
+    // Parse JSON response
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, payload);
+
+    if (error) {
+        Serial.printf("JSON parsing failed: %s\n", error.c_str());
+        return "";
+    }
+
+    // Find all .jpg files and get the latest one (alphabetically, which matches timestamp)
+    for (JsonObject item : doc.as<JsonArray>()) {
+        const char* name = item["name"];
+        const char* type = item["type"];
+
+        if (type && strcmp(type, "file") == 0 && name) {
+            String filename = String(name);
+            if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) {
+                // Keep the latest (max alphabetically = newest timestamp)
+                if (filename > latestFilename) {
+                    latestFilename = filename;
+                }
+            }
+        }
+    }
+
+    if (latestFilename.length() > 0) {
+        Serial.printf("Latest image found: %s\n", latestFilename.c_str());
+    } else {
+        Serial.println("No images found in repository");
+    }
+
+    return latestFilename;
 }
 
 /**
@@ -60,13 +98,23 @@ bool connectWiFi() {
 /**
  * Download image from URL and return data
  */
-uint8_t* downloadImage(size_t* imageSize) {
+uint8_t* downloadImage(const String& filename, size_t* imageSize) {
     HTTPClient http;
 
-    Serial.println("\n=== Downloading Image ===");
-    Serial.printf("URL: %s\n", IMAGE_URL);
+    // Construct GitHub raw URL
+    String imageUrl = "https://raw.githubusercontent.com/";
+    imageUrl += GITHUB_USER;
+    imageUrl += "/";
+    imageUrl += GITHUB_REPO;
+    imageUrl += "/";
+    imageUrl += GITHUB_BRANCH;
+    imageUrl += "/image/";
+    imageUrl += filename;
 
-    http.begin(IMAGE_URL);
+    Serial.println("\n=== Downloading Image ===");
+    Serial.printf("URL: %s\n", imageUrl.c_str());
+
+    http.begin(imageUrl);
     int httpCode = http.GET();
 
     if (httpCode != HTTP_CODE_OK) {
@@ -174,7 +222,7 @@ void setup() {
     delay(1000);
     Serial.println("\n=== M5PaperS3 Image Display ===");
     Serial.printf("Display: %dx%d\n", M5.Display.width(), M5.Display.height());
-    Serial.printf("Last image hash: %s\n", lastImageHash[0] ? lastImageHash : "none");
+    Serial.printf("Last displayed image: %s\n", lastImageFilename[0] ? lastImageFilename : "none");
 
     // Connect to WiFi
     if (!connectWiFi()) {
@@ -184,9 +232,26 @@ void setup() {
         return;
     }
 
-    // Download image
+    // Get latest image filename from GitHub
+    String latestFilename = getLatestImageFilename();
+
+    if (latestFilename.length() == 0) {
+        showError("No images in repository");
+        delay(5000);
+        enterDeepSleep();
+        return;
+    }
+
+    // Check if image has changed
+    if (strcmp(latestFilename.c_str(), lastImageFilename) == 0) {
+        Serial.println("Image unchanged, skipping display update");
+        enterDeepSleep();
+        return;
+    }
+
+    // Download new image
     size_t imageSize = 0;
-    uint8_t* imageData = downloadImage(&imageSize);
+    uint8_t* imageData = downloadImage(latestFilename, &imageSize);
 
     if (!imageData) {
         showError("Image download failed");
@@ -195,24 +260,12 @@ void setup() {
         return;
     }
 
-    // Calculate hash of downloaded image
-    char currentHash[65];
-    calculateSHA256(imageData, imageSize, currentHash);
-    Serial.printf("Current image hash: %s\n", currentHash);
-
-    // Check if image has changed
-    if (strcmp(currentHash, lastImageHash) == 0) {
-        Serial.println("Image unchanged, skipping display update");
-        free(imageData);
-        enterDeepSleep();
-        return;
-    }
-
     // Display new image
     if (displayImage(imageData, imageSize)) {
-        // Update stored hash
-        strcpy(lastImageHash, currentHash);
-        Serial.println("Image hash updated");
+        // Update stored filename
+        strncpy(lastImageFilename, latestFilename.c_str(), sizeof(lastImageFilename) - 1);
+        lastImageFilename[sizeof(lastImageFilename) - 1] = '\0';
+        Serial.printf("Updated last image to: %s\n", lastImageFilename);
     } else {
         showError("Failed to display image");
     }

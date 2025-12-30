@@ -2,7 +2,8 @@
 """
 Image processing worker for M5PaperS3
 Monitors input/ folder, converts images to 540x960 4-bit grayscale JPG,
-manages image/ folder (single current image) and output/ archive
+preserves original filenames with timestamp format (YYYYMMDD_HHMMSS.jpg)
+Archives previous images to output/ folder
 """
 
 import os
@@ -11,7 +12,6 @@ import time
 import shutil
 from pathlib import Path
 from PIL import Image, ImageEnhance
-import hashlib
 
 # Configuration
 INPUT_DIR = Path("input")
@@ -19,15 +19,6 @@ IMAGE_DIR = Path("image")
 OUTPUT_DIR = Path("output")
 TARGET_WIDTH = 540
 TARGET_HEIGHT = 960
-CURRENT_IMAGE_NAME = "current.jpg"
-
-def calculate_hash(file_path):
-    """Calculate SHA256 hash of a file"""
-    sha256_hash = hashlib.sha256()
-    with open(file_path, "rb") as f:
-        for byte_block in iter(lambda: f.read(4096), b""):
-            sha256_hash.update(byte_block)
-    return sha256_hash.hexdigest()
 
 def center_crop(img, target_width, target_height):
     """
@@ -105,44 +96,76 @@ def process_image(input_path, output_path):
     img.save(output_path, 'JPEG', quality=85, optimize=True)
     print(f"Saved to {output_path}")
 
-def archive_current_image():
+def get_latest_image_in_folder(folder):
     """
-    Move current image from image/ to output/ with timestamp
+    Get the latest image file in a folder (by filename, assuming YYYYMMDD_HHMMSS.jpg format)
     """
-    current_image_path = IMAGE_DIR / CURRENT_IMAGE_NAME
+    image_files = sorted(folder.glob("*.jpg")) + sorted(folder.glob("*.jpeg")) + \
+                  sorted(folder.glob("*.JPG")) + sorted(folder.glob("*.JPEG"))
 
-    if current_image_path.exists():
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        archive_name = f"image_{timestamp}.jpg"
-        archive_path = OUTPUT_DIR / archive_name
+    # Filter out .gitkeep
+    image_files = [f for f in image_files if f.name != '.gitkeep']
 
-        shutil.move(str(current_image_path), str(archive_path))
-        print(f"Archived current image to {archive_path}")
+    if image_files:
+        # Return latest (last in sorted order, which matches timestamp format)
+        return sorted(image_files)[-1]
+    return None
+
+def archive_old_images():
+    """
+    Move all images from image/ to output/, except the latest one
+    """
+    image_files = sorted(IMAGE_DIR.glob("*.jpg")) + sorted(IMAGE_DIR.glob("*.jpeg")) + \
+                  sorted(IMAGE_DIR.glob("*.JPG")) + sorted(IMAGE_DIR.glob("*.JPEG"))
+
+    # Filter out .gitkeep
+    image_files = [f for f in image_files if f.name != '.gitkeep']
+
+    if len(image_files) > 1:
+        # Archive all except the latest
+        for img_file in image_files[:-1]:
+            archive_path = OUTPUT_DIR / img_file.name
+            shutil.move(str(img_file), str(archive_path))
+            print(f"Archived {img_file.name} to output/")
 
 def process_new_images():
     """
-    Process all new images in input/ folder
+    Process all new images in input/ folder, preserving original filenames
+    Only processes images that don't already exist in image/ folder
     """
     input_files = sorted(INPUT_DIR.glob("*.jpg")) + sorted(INPUT_DIR.glob("*.jpeg")) + \
                   sorted(INPUT_DIR.glob("*.JPG")) + sorted(INPUT_DIR.glob("*.JPEG")) + \
                   sorted(INPUT_DIR.glob("*.png")) + sorted(INPUT_DIR.glob("*.PNG"))
 
+    # Filter out .gitkeep
+    input_files = [f for f in input_files if f.name != '.gitkeep']
+
     if not input_files:
-        print("No new images found in input/")
-        return
+        return  # Silently return, no new images
+
+    print(f"Found {len(input_files)} new image(s) in input/")
 
     for input_file in input_files:
         try:
-            # Archive current image if exists
-            archive_current_image()
+            # Keep original filename but change extension to .jpg
+            original_name = input_file.stem + ".jpg"
+            output_path = IMAGE_DIR / original_name
 
-            # Process new image to image/current.jpg
-            output_path = IMAGE_DIR / CURRENT_IMAGE_NAME
+            # Check if already processed
+            if output_path.exists():
+                print(f"Skipping {input_file.name} (already exists in image/)")
+                input_file.unlink()
+                continue
+
+            # Process new image preserving the filename
             process_image(input_file, output_path)
 
             # Remove processed file from input
             input_file.unlink()
             print(f"Removed {input_file.name} from input/")
+
+            # Archive old images (keep only the latest in image/)
+            archive_old_images()
 
         except Exception as e:
             print(f"Error processing {input_file.name}: {e}")

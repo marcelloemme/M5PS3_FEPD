@@ -6,9 +6,14 @@
 #define WIFI_SSID "YOUR_WIFI_SSID"
 #define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
 
-// GitHub Raw URL for current image
+// GitHub repository info
 // Replace 'marcelloemme' with your GitHub username if you forked the repo
-#define IMAGE_URL "https://raw.githubusercontent.com/marcelloemme/M5PS3_FEPD/main/image/current.jpg"
+#define GITHUB_USER "marcelloemme"
+#define GITHUB_REPO "M5PS3_FEPD"
+#define GITHUB_BRANCH "main"
+
+// GitHub API URL to list files in image/ folder (auto-constructed)
+#define GITHUB_API_URL "https://api.github.com/repos/" GITHUB_USER "/" GITHUB_REPO "/contents/image?ref=" GITHUB_BRANCH
 
 // Image dimensions (M5PaperS3 display size)
 #define IMAGE_WIDTH 540

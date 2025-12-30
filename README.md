@@ -5,10 +5,11 @@ An automated image display system for the M5Stack PaperS3 e-paper display that f
 ## Overview
 
 This project allows you to:
-1. Upload vertical images (e.g., from iPhone) to the `input/` folder
-2. A Python worker automatically converts them to 540x960 grayscale images
-3. The M5PaperS3 periodically checks for new images and displays them
-4. Images are archived in the `output/` folder
+1. Upload vertical images from iPhone (timestamped: YYYYMMDD_HHMMSS.jpg) to the `input/` folder
+2. A Python worker automatically converts them to 540x960 4-bit grayscale images
+3. Processed images keep their original timestamp filename
+4. The M5PaperS3 periodically checks GitHub for the latest image and displays it
+5. Previous images are archived in the `output/` folder
 
 ## Hardware Requirements
 
@@ -34,12 +35,12 @@ This project allows you to:
 
 ```
 M5PS3_FEPD/
-├── input/           # Drop your images here
-├── image/           # Current image (displayed on M5PaperS3)
-├── output/          # Archive of all processed images
+├── input/           # Drop timestamped images here (YYYYMMDD_HHMMSS.jpg)
+├── image/           # Latest processed image (M5PaperS3 downloads from here)
+├── output/          # Archive of all previous processed images
 ├── src/
 │   ├── main.cpp     # M5PaperS3 firmware
-│   ├── config.h     # WiFi credentials (not in git)
+│   ├── config.h     # WiFi and GitHub config (not in git)
 │   └── config.h.template  # Template for config
 ├── worker.py        # Image processing script
 ├── requirements.txt # Python dependencies
@@ -89,39 +90,45 @@ pio run -t upload
 
 ### Adding Images
 
-1. **From iPhone**: Save vertical photos to your computer or directly upload to the GitHub repo's `input/` folder
+1. **From iPhone**:
+   - Use Shortcuts to rename and upload photos with timestamp format: `YYYYMMDD_HHMMSS.jpg`
+   - Upload to the GitHub repo's `input/` folder via git or directly on GitHub web
 
 2. **Process images** using the Python worker:
    ```bash
-   # Single run (processes all images in input/)
+   # Single run (processes only new images in input/)
    python worker.py
 
-   # Watch mode (continuously monitors input/)
+   # Watch mode (continuously monitors input/ for new images)
    python worker.py watch
    ```
+   The worker only processes new files, not existing ones - it's optimized!
 
 3. **Commit and push** the processed image to GitHub:
    ```bash
-   git add image/current.jpg
+   git add image/ output/
    git commit -m "Update display image"
    git push
    ```
 
 ### How It Works
 
-1. **Image Upload**: Place vertical images (JPG/PNG) in `input/` folder
+1. **Image Upload**: Upload vertical images (JPG/PNG) to `input/` with timestamp filename
 2. **Processing**: Worker script:
+   - Monitors `input/` folder for new images
    - Crops image to 9:16 aspect ratio (center crop)
    - Resizes to 540x960 pixels
    - Converts to 4-bit grayscale (16 levels)
-   - Saves as JPG to `image/current.jpg`
-   - Archives previous image to `output/` with timestamp
+   - Saves as JPG to `image/` **keeping the original timestamp filename**
+   - Moves previous image from `image/` to `output/` archive
+   - Deletes processed file from `input/`
 3. **Display**: M5PaperS3:
-   - Wakes from deep sleep every 30 minutes
+   - Wakes from deep sleep every 30 minutes (configurable)
    - Connects to WiFi
-   - Downloads `image/current.jpg` from GitHub
-   - Compares SHA256 hash with previous image
-   - If different, displays new image
+   - Queries GitHub API to find the latest image in `image/` folder
+   - Compares filename with last displayed image
+   - If different, downloads and displays new image
+   - Stores filename in RTC memory
    - Returns to deep sleep
 
 ### Automation with GitHub Actions
@@ -157,7 +164,9 @@ jobs:
 
 - `WIFI_SSID`: Your WiFi network name
 - `WIFI_PASSWORD`: Your WiFi password
-- `IMAGE_URL`: URL to the raw image on GitHub
+- `GITHUB_USER`: Your GitHub username (default: "marcelloemme")
+- `GITHUB_REPO`: Repository name (default: "M5PS3_FEPD")
+- `GITHUB_BRANCH`: Branch name (default: "main")
 - `SLEEP_DURATION_US`: Time between updates (default: 30 minutes)
 - `DISPLAY_ROTATION`: Display orientation (0-3)
 
@@ -165,7 +174,7 @@ jobs:
 
 - `TARGET_WIDTH`: 540 (M5PaperS3 width)
 - `TARGET_HEIGHT`: 960 (M5PaperS3 height)
-- `CURRENT_IMAGE_NAME`: "current.jpg"
+- Images preserve original timestamp filenames
 
 ## Troubleshooting
 
@@ -173,8 +182,9 @@ jobs:
 
 1. Check serial monitor for error messages
 2. Verify WiFi credentials in `src/config.h`
-3. Ensure `IMAGE_URL` is accessible (try opening in browser)
-4. Check that image is committed and pushed to GitHub
+3. Ensure GitHub repository is public or accessible
+4. Check that processed image is committed and pushed to GitHub `image/` folder
+5. Verify GitHub API is accessible (check URL in serial monitor)
 
 ### Image Quality Issues
 
