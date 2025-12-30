@@ -46,14 +46,14 @@ String getLatestImageFilename() {
         return "";
     }
 
-    // Find all .jpg files and get the latest one (alphabetically, which matches timestamp)
+    // Find all .png files and get the latest one (alphabetically, which matches timestamp)
     for (JsonObject item : doc.as<JsonArray>()) {
         const char* name = item["name"];
         const char* type = item["type"];
 
         if (type && strcmp(type, "file") == 0 && name) {
             String filename = String(name);
-            if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) {
+            if (filename.endsWith(".png") || filename.endsWith(".PNG")) {
                 // Keep the latest (max alphabetically = newest timestamp)
                 if (filename > latestFilename) {
                     latestFilename = filename;
@@ -180,8 +180,8 @@ bool displayImage(const uint8_t* imageData, size_t imageSize) {
     // Clear only once before drawing new image
     M5.Display.clearDisplay();
 
-    // Draw JPEG directly to display buffer (no refresh yet)
-    bool success = M5.Display.drawJpg(imageData, imageSize, 0, 0, IMAGE_WIDTH, IMAGE_HEIGHT);
+    // Draw PNG directly to display buffer (no refresh yet)
+    bool success = M5.Display.drawPng(imageData, imageSize, 0, 0, IMAGE_WIDTH, IMAGE_HEIGHT);
 
     if (success) {
         // Single refresh after image is drawn

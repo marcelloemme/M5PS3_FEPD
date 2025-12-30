@@ -135,8 +135,8 @@ def process_image(input_path, output_path):
     # Convert to 4-bit grayscale
     img = convert_to_4bit_grayscale(img)
 
-    # Save as JPG
-    img.save(output_path, 'JPEG', quality=85, optimize=True)
+    # Save as PNG (lossless, preserves exact 4-bit levels)
+    img.save(output_path, 'PNG', optimize=True)
     print(f"Saved to {output_path}")
 
 def get_latest_image_in_folder(folder):
@@ -190,8 +190,8 @@ def process_new_images():
 
     for input_file in input_files:
         try:
-            # Keep original filename but change extension to .jpg
-            original_name = input_file.stem + ".jpg"
+            # Keep original filename but change extension to .png
+            original_name = input_file.stem + ".png"
             output_path = IMAGE_DIR / original_name
 
             # Check if already processed
