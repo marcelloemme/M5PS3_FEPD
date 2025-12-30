@@ -96,6 +96,7 @@ def color_aware_grayscale(img):
     """
     Convert to grayscale preserving color contrast
     Maintains separation between different colors even if they have similar luminosity
+    Uses opponent color channels: Red-Cyan, Blue-Yellow, Green-Magenta
     """
     if img.mode != 'RGB':
         img = img.convert('RGB')
@@ -108,10 +109,16 @@ def color_aware_grayscale(img):
     # Standard luminosity
     luminosity = 0.299 * r_data + 0.587 * g_data + 0.114 * b_data
 
-    # Chrominance boost for color boundaries
+    # Opponent color channels for maximum color separation
+    # Red-Cyan axis
     rc_diff = r_data - (g_data + b_data) / 2.0
+    # Blue-Yellow axis
     by_diff = b_data - (r_data + g_data) / 2.0
-    chroma_boost = (np.abs(rc_diff) + np.abs(by_diff)) * 0.15
+    # Green-Magenta axis
+    gm_diff = g_data - (r_data + b_data) / 2.0
+
+    # Combine all chrominance differences with stronger boost (0.3 instead of 0.15)
+    chroma_boost = (np.abs(rc_diff) + np.abs(by_diff) + np.abs(gm_diff)) * 0.3
 
     result = luminosity + chroma_boost
     result = np.clip(result, 0, 255).astype(np.uint8)
